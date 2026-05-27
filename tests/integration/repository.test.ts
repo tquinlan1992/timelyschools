@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createStore } from "@/lib/store";
 import { SCHOOL_YEAR } from "@/constants";
 
-describe("InMemoryStore", () => {
+describe("in-memory store", () => {
   it("sorts students with needsAttention first", async () => {
     const store = createStore();
     const students = await store.getStudents();

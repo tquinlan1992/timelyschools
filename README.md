@@ -29,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000).
 User interface (React client components)
   → fetch /api/*
     → CourseRequestRepository (interface)
-      → InMemoryStore (singleton, seeded from JSON)
+      → in-memory store factory (singleton, seeded from JSON)
 ```
 
 | Path | Role |
