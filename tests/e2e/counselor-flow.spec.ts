@@ -28,6 +28,39 @@ test.describe("Counselor course request flow", () => {
     await expect(page.getByRole("heading", { name: "Jordan Williams" })).toBeVisible();
   });
 
+  test("each assignment edge case has a visible roster flag and banner", async ({ page }) => {
+    await page.goto("/");
+
+    const cases = [
+      { link: /Mei Chen/i, chip: "ELL", banner: "English Language Learner" },
+      { link: /Jordan Williams/i, chip: "Retake", banner: "Math retake required" },
+      { link: /Liam O'Brien/i, chip: "AP load", banner: "Heavy AP schedule" },
+      { link: /Nina Torres/i, chip: "Transfer", banner: "Mid-year transfer" },
+    ] as const;
+
+    for (const { link, chip, banner } of cases) {
+      const row = page.getByRole("link", { name: link });
+      await expect(row.getByText(chip)).toBeVisible();
+      await row.click();
+      await expect(page.getByText(banner)).toBeVisible();
+    }
+  });
+
+  test("roster updates when all requests are removed", async ({ page }) => {
+    await page.goto("/students/S001");
+    const rosterRow = page.getByRole("link", { name: /Alex Rivera/i });
+    await expect(rosterRow.getByText(/\d+P · \d+E/)).toBeVisible();
+
+    const removeButtons = page.getByRole("button", { name: "Remove" });
+    const count = await removeButtons.count();
+    for (let i = 0; i < count; i++) {
+      await removeButtons.first().click();
+    }
+
+    await expect(rosterRow.locator(".request-counts")).toHaveText("No requests");
+    await expect(rosterRow.locator(".status-chip.no_requests")).toBeVisible();
+  });
+
   test("shows error when adding duplicate course", async ({ page }) => {
     await page.goto("/students/S001");
     await page.getByRole("button", { name: "Add course" }).click();

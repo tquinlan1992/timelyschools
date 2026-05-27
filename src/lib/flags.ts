@@ -2,6 +2,10 @@ import type { Course, CourseRequest, RequestCounts, Student, StudentFlag } from 
 
 const AP_CODE_PATTERN = /^(MTH4|ENG4|SS4|SCI4|AT301)/;
 
+function profileIncludes(student: { profile: string }, phrase: string): boolean {
+  return student.profile.toLowerCase().includes(phrase.toLowerCase());
+}
+
 export function countApCourses(requests: CourseRequest[], courses: Map<string, Course>): number {
   return requests.filter((r) => {
     const course = courses.get(r.courseCode);
@@ -22,20 +26,40 @@ export function computeStudentFlags(
 ): { flags: StudentFlag[]; needsAttention: boolean } {
   const flags: StudentFlag[] = [];
 
-  if (student.id === "S002") flags.push("ell");
-  if (student.id === "S003") flags.push("retake");
-  if (student.id === "S010") {
-    flags.push("transfer", "credit_pending");
+  if (profileIncludes(student, "english language learner")) {
+    flags.push("ell");
   }
-  if (requests.length === 0) flags.push("no_requests");
-  if (countApCourses(requests, courses) >= 4) flags.push("ap_heavy");
+  if (
+    profileIncludes(student, "must retake") ||
+    profileIncludes(student, "failed") ||
+    requests.some((r) => r.note?.toLowerCase().includes("retake"))
+  ) {
+    flags.push("retake");
+  }
+  if (
+    student.enrollmentStatus === "incoming" ||
+    profileIncludes(student, "transferred")
+  ) {
+    flags.push("transfer");
+  }
+  if (profileIncludes(student, "credit evaluation pending")) {
+    flags.push("credit_pending");
+  }
+  if (requests.length === 0) {
+    flags.push("no_requests");
+  }
+  if (countApCourses(requests, courses) >= 4) {
+    flags.push("ap_heavy");
+  }
 
   const needsAttention =
-    student.id === "S003" ||
-    student.id === "S010" ||
     student.enrollmentStatus === "incoming" ||
     requests.length === 0 ||
-    requests.some((r) => r.note?.toLowerCase().includes("tbd"));
+    requests.some((r) => r.note?.toLowerCase().includes("tbd")) ||
+    flags.includes("ell") ||
+    flags.includes("retake") ||
+    flags.includes("ap_heavy") ||
+    flags.includes("credit_pending");
 
   return { flags, needsAttention };
 }

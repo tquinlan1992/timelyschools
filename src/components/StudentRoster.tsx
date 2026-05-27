@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StudentRow } from "@/components/StudentRow";
+import { useRosterRefresh } from "@/contexts/roster-refresh";
 import type { StudentWithRequests } from "@/types";
 
 export function StudentRoster({ selectedId }: { selectedId?: string }) {
@@ -10,6 +11,7 @@ export function StudentRoster({ selectedId }: { selectedId?: string }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "needs_attention">("all");
   const [loading, setLoading] = useState(true);
+  const { refreshKey } = useRosterRefresh();
 
   const fetchStudents = useCallback(async () => {
     const params = new URLSearchParams();
@@ -28,7 +30,7 @@ export function StudentRoster({ selectedId }: { selectedId?: string }) {
       fetchStudents();
     }, search ? 200 : 0);
     return () => clearTimeout(t);
-  }, [fetchStudents, search]);
+  }, [fetchStudents, search, refreshKey]);
 
   return (
     <aside className="sidebar">

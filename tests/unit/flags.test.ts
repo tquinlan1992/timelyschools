@@ -5,6 +5,7 @@ import {
   countApCourses,
   sortStudents,
 } from "@/lib/flags";
+import { EDGE_CASE_STUDENTS } from "@/constants";
 import { buildCourse, buildCourseMap } from "../fixtures/courses";
 import { buildRequest, buildStudent } from "../fixtures/students";
 
@@ -33,41 +34,53 @@ describe("computeRequestCounts", () => {
 });
 
 describe("computeStudentFlags", () => {
-  it("flags S002 as ELL", () => {
-    const student = buildStudent({ id: "S002" });
-    const { flags } = computeStudentFlags(student, [buildRequest()], courses);
+  it("flags S002 as ELL from profile", () => {
+    const student = buildStudent({
+      id: EDGE_CASE_STUDENTS.ell,
+      profile: "English Language Learner support needed.",
+    });
+    const { flags, needsAttention } = computeStudentFlags(student, [buildRequest()], courses);
     expect(flags).toContain("ell");
+    expect(needsAttention).toBe(true);
   });
 
-  it("flags S003 as retake and needs attention", () => {
-    const student = buildStudent({ id: "S003" });
+  it("flags S003 as retake from profile", () => {
+    const student = buildStudent({
+      id: EDGE_CASE_STUDENTS.retake,
+      profile: "Failed MTH101 last year. Must retake before advancing.",
+    });
     const { flags, needsAttention } = computeStudentFlags(student, [buildRequest()], courses);
     expect(flags).toContain("retake");
     expect(needsAttention).toBe(true);
   });
 
-  it("flags S010 as transfer with credit pending", () => {
-    const student = buildStudent({ id: "S010", enrollmentStatus: "incoming" });
-    const { flags, needsAttention } = computeStudentFlags(student, [buildRequest()], courses);
-    expect(flags).toContain("transfer");
-    expect(flags).toContain("credit_pending");
-    expect(needsAttention).toBe(true);
-  });
-
-  it("flags ap_heavy when 4+ AP courses", () => {
-    const student = buildStudent({ id: "S009" });
+  it("flags S009 as ap_heavy with 4+ AP courses", () => {
+    const student = buildStudent({ id: EDGE_CASE_STUDENTS.apHeavy });
     const requests = [
       buildRequest({ courseCode: "MTH401" }),
       buildRequest({ courseCode: "ENG401", id: "r2" }),
       buildRequest({ courseCode: "SS401", id: "r3" }),
       buildRequest({ courseCode: "SCI401", id: "r4" }),
     ];
-    const { flags } = computeStudentFlags(student, requests, courses);
+    const { flags, needsAttention } = computeStudentFlags(student, requests, courses);
     expect(flags).toContain("ap_heavy");
+    expect(needsAttention).toBe(true);
   });
 
-  it("flags no_requests and needs attention when empty", () => {
-    const student = buildStudent({ id: "S001" });
+  it("flags S010 as transfer with credit pending", () => {
+    const student = buildStudent({
+      id: EDGE_CASE_STUDENTS.transfer,
+      enrollmentStatus: "incoming",
+      profile: "Transferred mid-year. Credit evaluation pending.",
+    });
+    const { flags, needsAttention } = computeStudentFlags(student, [buildRequest()], courses);
+    expect(flags).toContain("transfer");
+    expect(flags).toContain("credit_pending");
+    expect(needsAttention).toBe(true);
+  });
+
+  it("flags S005 as no_requests when request list is empty", () => {
+    const student = buildStudent({ id: EDGE_CASE_STUDENTS.noRequests });
     const { flags, needsAttention } = computeStudentFlags(student, [], courses);
     expect(flags).toContain("no_requests");
     expect(needsAttention).toBe(true);

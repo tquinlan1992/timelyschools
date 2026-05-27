@@ -7,6 +7,7 @@ import { AttentionBanner } from "@/components/AttentionBanner";
 import { RequestColumn } from "@/components/RequestColumn";
 import { StatusChip } from "@/components/StatusChip";
 import { Toast } from "@/components/Toast";
+import { useRosterRefresh } from "@/contexts/roster-refresh";
 import type { RequestType, StudentWithRequests } from "@/types";
 
 export function StudentWorkspace({ studentId }: { studentId: string }) {
@@ -15,6 +16,7 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [highlightId, setHighlightId] = useState<string | undefined>();
   const [toast, setToast] = useState<{ message: string; variant?: "error" } | null>(null);
+  const { notifyRosterChanged } = useRosterRefresh();
 
   const loadStudent = useCallback(async () => {
     setLoading(true);
@@ -44,14 +46,18 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ requestType: type }),
     });
-    if (res.ok) loadStudent();
+    if (res.ok) {
+      await loadStudent();
+      notifyRosterChanged();
+    }
   };
 
   const handleRemove = async (id: string) => {
     const res = await fetch(`/api/requests/${id}`, { method: "DELETE" });
     if (res.ok) {
       setToast({ message: "Request removed" });
-      loadStudent();
+      await loadStudent();
+      notifyRosterChanged();
     }
   };
 
@@ -90,7 +96,7 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
         </div>
       </div>
 
-      <AttentionBanner studentId={student.id} />
+      <AttentionBanner flags={student.flags} />
 
       <div className="workspace-actions">
         <button type="button" className="btn btn-primary" onClick={() => setSheetOpen(true)}>
@@ -124,10 +130,11 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
         studentGrade={student.grade}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onAdded={(id) => {
+        onAdded={async (id) => {
           setHighlightId(id);
           setToast({ message: "Course added" });
-          loadStudent();
+          await loadStudent();
+          notifyRosterChanged();
           setTimeout(() => setHighlightId(undefined), 2000);
         }}
         onError={(msg) => setToast({ message: msg, variant: "error" })}

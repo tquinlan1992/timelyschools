@@ -27,6 +27,16 @@
 .DS_Store
 *.pem
 
+# IDE / editor
+.cursor/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# playwright cache
+playwright/.cache/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

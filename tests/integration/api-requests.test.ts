@@ -70,9 +70,9 @@ describe("PATCH /api/requests/[requestId]", () => {
 
 describe("DELETE /api/requests/[requestId]", () => {
   it("deletes and persists after refresh", async () => {
-    const listRes = await callRoute(getRequests, { params: { id: "S005" } });
+    const listRes = await callRoute(getRequests, { params: { id: "S001" } });
     const requests = await json<{ id: string; courseCode: string }[]>(listRes);
-    const target = requests.find((r) => r.courseCode === "AT302")!;
+    const target = requests.find((r) => r.courseCode === "AT101")!;
 
     const deleteRes = await callRoute(deleteRequest, {
       method: "DELETE",
@@ -80,7 +80,7 @@ describe("DELETE /api/requests/[requestId]", () => {
     });
     expect(deleteRes.status).toBe(204);
 
-    const afterRes = await callRoute(getRequests, { params: { id: "S005" } });
+    const afterRes = await callRoute(getRequests, { params: { id: "S001" } });
     const after = await json<{ id: string }[]>(afterRes);
     expect(after.find((r) => r.id === target.id)).toBeUndefined();
   });

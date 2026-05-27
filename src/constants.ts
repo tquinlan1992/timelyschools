@@ -11,28 +11,46 @@ export const FLAG_LABELS: Record<StudentFlag, string> = {
   credit_pending: "Credit review",
 };
 
-export const STUDENT_BANNERS: Record<
-  string,
-  { title: string; body: string; variant?: "info" | "warning" }
+export const FLAG_BANNERS: Partial<
+  Record<StudentFlag, { title: string; body: string; variant?: "info" | "warning" }>
 > = {
-  S002: {
+  ell: {
     title: "English Language Learner",
     body: "Ensure ENG102 (ELL Support) is requested alongside core English coursework.",
     variant: "info",
   },
-  S003: {
+  retake: {
     title: "Math retake required",
     body: "Student failed Algebra I last year. MTH101 must be completed before advancing in math.",
     variant: "warning",
   },
-  S009: {
+  ap_heavy: {
     title: "Heavy AP schedule",
     body: "Review for potential schedule conflicts when the master schedule is built.",
     variant: "info",
   },
-  S010: {
+  transfer: {
+    title: "Mid-year transfer",
+    body: "Student transferred from another district. Verify prior coursework before finalizing requests.",
+    variant: "warning",
+  },
+  credit_pending: {
     title: "Credit evaluation pending",
     body: "Transcript review in progress. Treat requests as draft until prior coursework is verified.",
     variant: "warning",
   },
+  no_requests: {
+    title: "No course requests yet",
+    body: "Add priority and elective courses from the catalog before this list is ready for scheduling.",
+    variant: "warning",
+  },
 };
+
+/** Assignment edge-case students (Appendix B) — one example per scenario. */
+export const EDGE_CASE_STUDENTS = {
+  ell: "S002",
+  retake: "S003",
+  apHeavy: "S009",
+  transfer: "S010",
+  noRequests: "S005",
+} as const;

@@ -19,7 +19,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 - **Cohort roster** — 10 students with grade, profile, status chips, and request counts; sorted with “needs attention” first
 - **Search & filter** — by name; filter to students needing review
-- **Student workspace** — two-column summary (Priority | Elective), contextual banners for edge cases (English language learner support, retake, Advanced Placement load, transfer)
+- **Student workspace** — two-column summary (Priority | Elective), contextual banners for edge cases with one seeded example each: English language learner (S002), math retake (S003), heavy Advanced Placement load (S009), mid-year transfer (S010), plus no requests yet (S005)
 - **Add / remove / retag** — assign courses from a 37-course catalog; toggle priority vs elective; optional notes
 - **Web routes** — `/api/students`, `/api/courses`, `/api/requests/[id]` backed by swappable repository
 
