@@ -27,14 +27,28 @@ describe("RequestRow", () => {
     expect(screen.getByText(/MTH101/)).toBeInTheDocument();
   });
 
-  it("calls onToggleType when E is clicked", async () => {
+  it("calls onToggleType to move to electives", async () => {
     const user = userEvent.setup();
     const onToggleType = vi.fn();
     render(
       <RequestRow request={request} onToggleType={onToggleType} onRemove={vi.fn()} />
     );
-    await user.click(screen.getByRole("button", { name: "E" }));
+    await user.click(screen.getByRole("button", { name: "Move to electives" }));
     expect(onToggleType).toHaveBeenCalledWith("req-1", "elective");
+  });
+
+  it("offers move to priority when request is elective", async () => {
+    const user = userEvent.setup();
+    const onToggleType = vi.fn();
+    render(
+      <RequestRow
+        request={{ ...request, requestType: "elective" }}
+        onToggleType={onToggleType}
+        onRemove={vi.fn()}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Move to priority" }));
+    expect(onToggleType).toHaveBeenCalledWith("req-1", "priority");
   });
 
   it("calls onRemove when Remove is clicked", async () => {

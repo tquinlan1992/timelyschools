@@ -1,15 +1,14 @@
 import type { Course, CourseRequest, RequestCounts, Student, StudentFlag } from "@/types";
 
-const AP_CODE_PATTERN = /^(MTH4|ENG4|SS4|SCI4|AT301)/;
-
 function profileIncludes(student: { profile: string }, phrase: string): boolean {
   return student.profile.toLowerCase().includes(phrase.toLowerCase());
 }
 
 export function countApCourses(requests: CourseRequest[], courses: Map<string, Course>): number {
+  const apPattern = /^(MTH4|ENG4|SS4|SCI4|AT301)/;
   return requests.filter((r) => {
     const course = courses.get(r.courseCode);
-    return course && AP_CODE_PATTERN.test(course.code);
+    return course && apPattern.test(course.code);
   }).length;
 }
 
@@ -19,11 +18,18 @@ export function computeRequestCounts(requests: CourseRequest[]): RequestCounts {
   return { total: requests.length, priority, elective };
 }
 
+/**
+ * Flags and needs-attention for the four Appendix B edge cases only:
+ * S002 ELL, S003 retake, S009 full AP load, S010 transfer.
+ * `no_requests` is computed when a list is empty (e.g. after counselor removes all)
+ * but is not a seeded scenario in the assignment data.
+ */
 export function computeStudentFlags(
   student: Omit<Student, "flags" | "needsAttention">,
   requests: CourseRequest[],
   courses: Map<string, Course>
 ): { flags: StudentFlag[]; needsAttention: boolean } {
+  void courses;
   const flags: StudentFlag[] = [];
 
   if (profileIncludes(student, "english language learner")) {
@@ -31,10 +37,12 @@ export function computeStudentFlags(
   }
   if (
     profileIncludes(student, "must retake") ||
-    profileIncludes(student, "failed") ||
     requests.some((r) => r.note?.toLowerCase().includes("retake"))
   ) {
     flags.push("retake");
+  }
+  if (profileIncludes(student, "full ap load")) {
+    flags.push("ap_heavy");
   }
   if (
     student.enrollmentStatus === "incoming" ||
@@ -48,18 +56,12 @@ export function computeStudentFlags(
   if (requests.length === 0) {
     flags.push("no_requests");
   }
-  if (countApCourses(requests, courses) >= 4) {
-    flags.push("ap_heavy");
-  }
 
   const needsAttention =
-    student.enrollmentStatus === "incoming" ||
-    requests.length === 0 ||
-    requests.some((r) => r.note?.toLowerCase().includes("tbd")) ||
     flags.includes("ell") ||
     flags.includes("retake") ||
     flags.includes("ap_heavy") ||
-    flags.includes("credit_pending");
+    flags.includes("transfer");
 
   return { flags, needsAttention };
 }

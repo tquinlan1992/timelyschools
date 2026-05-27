@@ -90,6 +90,6 @@ describe("in-memory store", () => {
     }
     const updated = await store.getStudent("S001");
     expect(updated!.flags).toContain("no_requests");
-    expect(updated!.needsAttention).toBe(true);
+    expect(updated!.needsAttention).toBe(false);
   });
 });

@@ -46,11 +46,10 @@ export const FLAG_BANNERS: Partial<
   },
 };
 
-/** Assignment edge-case students (Appendix B) — one example per scenario. */
+/** Appendix B edge-case students — one seeded example per scenario. */
 export const EDGE_CASE_STUDENTS = {
   ell: "S002",
   retake: "S003",
   apHeavy: "S009",
   transfer: "S010",
-  noRequests: "S005",
 } as const;

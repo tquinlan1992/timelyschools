@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Counselor course request flow", () => {
   test("attention filter, student workspace, add course, persistence", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Course Requests" })).toBeVisible();
+    await page.goto("/students");
+    await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
     await expect(page.getByText(/need review/i).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Needs attention" }).click();
-    await expect(page.getByRole("link", { name: /Nina Torres/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /View Nina Torres/i })).toBeVisible();
 
-    await page.getByRole("link", { name: /Nina Torres/i }).click();
+    await page.getByRole("link", { name: /View Nina Torres/i }).click();
     await expect(page.getByText("Credit evaluation pending")).toBeVisible();
 
     await page.getByRole("button", { name: "Add course" }).click();
@@ -29,36 +29,43 @@ test.describe("Counselor course request flow", () => {
   });
 
   test("each assignment edge case has a visible roster flag and banner", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/students");
 
     const cases = [
-      { link: /Mei Chen/i, chip: "ELL", banner: "English Language Learner" },
-      { link: /Jordan Williams/i, chip: "Retake", banner: "Math retake required" },
-      { link: /Liam O'Brien/i, chip: "AP load", banner: "Heavy AP schedule" },
-      { link: /Nina Torres/i, chip: "Transfer", banner: "Mid-year transfer" },
+      { name: /Mei Chen/i, chip: "ELL", banner: "English Language Learner" },
+      { name: /Jordan Williams/i, chip: "Retake", banner: "Math retake required" },
+      { name: /Liam O'Brien/i, chip: "AP load", banner: "Heavy AP schedule" },
+      { name: /Nina Torres/i, chip: "Transfer", banner: "Mid-year transfer" },
     ] as const;
 
-    for (const { link, chip, banner } of cases) {
-      const row = page.getByRole("link", { name: link });
+    for (const { name, chip, banner } of cases) {
+      const row = page.getByRole("row").filter({ hasText: name });
       await expect(row.getByText(chip)).toBeVisible();
       await row.click();
       await expect(page.getByText(banner)).toBeVisible();
+      await page.getByRole("link", { name: "Students" }).click();
     }
   });
 
   test("roster updates when all requests are removed", async ({ page }) => {
     await page.goto("/students/S001");
-    const rosterRow = page.getByRole("link", { name: /Alex Rivera/i });
-    await expect(rosterRow.getByText(/\d+P · \d+E/)).toBeVisible();
-
     const removeButtons = page.getByRole("button", { name: "Remove" });
     const count = await removeButtons.count();
     for (let i = 0; i < count; i++) {
       await removeButtons.first().click();
     }
 
-    await expect(rosterRow.locator(".request-counts")).toHaveText("No requests");
-    await expect(rosterRow.locator(".status-chip.no_requests")).toBeVisible();
+    await page.getByRole("link", { name: "Students" }).click();
+    const row = page.getByRole("row").filter({ hasText: "Alex Rivera" });
+    await expect(row.getByText("No requests")).toBeVisible();
+    await expect(row.locator(".status-chip.no_requests")).toBeVisible();
+  });
+
+  test("course catalog page lists departments", async ({ page }) => {
+    await page.goto("/courses");
+    await expect(page.getByRole("heading", { name: "Course catalog" })).toBeVisible();
+    await expect(page.getByText("Math")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "MTH101" })).toBeVisible();
   });
 
   test("shows error when adding duplicate course", async ({ page }) => {

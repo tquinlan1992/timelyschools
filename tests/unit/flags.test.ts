@@ -14,7 +14,6 @@ const courses = buildCourseMap([
   buildCourse({ code: "ENG401", name: "AP English Language" }),
   buildCourse({ code: "SS401", name: "AP U.S. History" }),
   buildCourse({ code: "SCI401", name: "AP Biology" }),
-  buildCourse({ code: "AT301", name: "AP Computer Science A" }),
   buildCourse({ code: "MTH101", name: "Algebra I" }),
 ]);
 
@@ -54,8 +53,11 @@ describe("computeStudentFlags", () => {
     expect(needsAttention).toBe(true);
   });
 
-  it("flags S009 as ap_heavy with 4+ AP courses", () => {
-    const student = buildStudent({ id: EDGE_CASE_STUDENTS.apHeavy });
+  it("flags S009 as ap_heavy from Full AP load profile only", () => {
+    const student = buildStudent({
+      id: EDGE_CASE_STUDENTS.apHeavy,
+      profile: "Full AP load. College-bound.",
+    });
     const requests = [
       buildRequest({ courseCode: "MTH401" }),
       buildRequest({ courseCode: "ENG401", id: "r2" }),
@@ -65,6 +67,20 @@ describe("computeStudentFlags", () => {
     const { flags, needsAttention } = computeStudentFlags(student, requests, courses);
     expect(flags).toContain("ap_heavy");
     expect(needsAttention).toBe(true);
+  });
+
+  it("does not flag ap_heavy for multiple APs without Full AP load profile", () => {
+    const student = buildStudent({
+      profile: "Planning to take multiple APs.",
+    });
+    const requests = [
+      buildRequest({ courseCode: "MTH401" }),
+      buildRequest({ courseCode: "ENG401", id: "r2" }),
+      buildRequest({ courseCode: "SS401", id: "r3" }),
+      buildRequest({ courseCode: "SCI401", id: "r4" }),
+    ];
+    const { flags } = computeStudentFlags(student, requests, courses);
+    expect(flags).not.toContain("ap_heavy");
   });
 
   it("flags S010 as transfer with credit pending", () => {
@@ -79,18 +95,11 @@ describe("computeStudentFlags", () => {
     expect(needsAttention).toBe(true);
   });
 
-  it("flags S005 as no_requests when request list is empty", () => {
-    const student = buildStudent({ id: EDGE_CASE_STUDENTS.noRequests });
+  it("flags no_requests when empty but does not need attention", () => {
+    const student = buildStudent({ id: "S001" });
     const { flags, needsAttention } = computeStudentFlags(student, [], courses);
     expect(flags).toContain("no_requests");
-    expect(needsAttention).toBe(true);
-  });
-
-  it("needs attention when note contains TBD", () => {
-    const student = buildStudent({ id: "S001" });
-    const requests = [buildRequest({ note: "TBD pending transcript review" })];
-    const { needsAttention } = computeStudentFlags(student, requests, courses);
-    expect(needsAttention).toBe(true);
+    expect(needsAttention).toBe(false);
   });
 });
 

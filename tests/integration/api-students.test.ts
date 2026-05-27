@@ -5,12 +5,26 @@ import { GET as getCourses } from "@/app/api/courses/route";
 import { callRoute, json } from "../helpers/api";
 
 describe("GET /api/students", () => {
-  it("returns 10 students and attention count", async () => {
+  it("returns paginated students and cohort attention count", async () => {
     const res = await callRoute(getStudents);
     expect(res.status).toBe(200);
-    const data = await json<{ students: unknown[]; attentionCount: number }>(res);
+    const data = await json<{
+      students: unknown[];
+      attentionCount: number;
+      pagination: { total: number; page: number; pageSize: number };
+    }>(res);
     expect(data.students).toHaveLength(10);
+    expect(data.pagination.total).toBe(10);
     expect(data.attentionCount).toBeGreaterThan(0);
+  });
+
+  it("paginates with page and pageSize", async () => {
+    const res = await callRoute(getStudents, {
+      searchParams: { page: "1", pageSize: "5" },
+    });
+    const data = await json<{ students: unknown[]; pagination: { totalPages: number } }>(res);
+    expect(data.students).toHaveLength(5);
+    expect(data.pagination.totalPages).toBe(2);
   });
 
   it("filters needs_attention", async () => {

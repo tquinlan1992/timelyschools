@@ -106,22 +106,32 @@ export function AddCourseSheet({
           <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginBottom: "1rem" }}>
             Adding to <strong>{studentName}</strong>
           </p>
-          <div className="segmented-control" role="group" aria-label="Request type">
-            <button
-              type="button"
-              className={requestType === "priority" ? "active priority" : ""}
-              onClick={() => setRequestType("priority")}
-            >
-              Priority
-            </button>
-            <button
-              type="button"
-              className={requestType === "elective" ? "active elective" : ""}
-              onClick={() => setRequestType("elective")}
-            >
-              Elective
-            </button>
-          </div>
+          <fieldset className="request-type-field">
+            <legend className="request-type-legend">Add as</legend>
+            <div className="segmented-control" role="group" aria-label="Request type">
+              <button
+                type="button"
+                className={requestType === "priority" ? "active priority" : ""}
+                onClick={() => setRequestType("priority")}
+                aria-pressed={requestType === "priority"}
+              >
+                Priority
+              </button>
+              <button
+                type="button"
+                className={requestType === "elective" ? "active elective" : ""}
+                onClick={() => setRequestType("elective")}
+                aria-pressed={requestType === "elective"}
+              >
+                Elective
+              </button>
+            </div>
+            <p className="request-type-hint">
+              {requestType === "priority"
+                ? "Core courses the student needs for graduation or their plan."
+                : "Additional courses beyond core requirements."}
+            </p>
+          </fieldset>
           <input
             type="search"
             className="catalog-search"

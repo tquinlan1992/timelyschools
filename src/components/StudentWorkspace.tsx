@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { AddCourseSheet } from "@/components/AddCourseSheet";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AttentionBanner } from "@/components/AttentionBanner";
 import { RequestColumn } from "@/components/RequestColumn";
 import { StatusChip } from "@/components/StatusChip";
@@ -62,17 +62,33 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
   };
 
   if (loading) {
-    return <div className="empty-state">Loading student…</div>;
+    return (
+      <>
+        <Breadcrumbs
+          items={[
+            { label: "Students", href: "/students" },
+            { label: "Loading…" },
+          ]}
+        />
+        <div className="empty-state">Loading student…</div>
+      </>
+    );
   }
 
   if (!student) {
     return (
-      <div className="not-found">
-        <h2>Student not found</h2>
-        <p>
-          <Link href="/">← Back to roster</Link>
-        </p>
-      </div>
+      <>
+        <Breadcrumbs
+          items={[
+            { label: "Students", href: "/students" },
+            { label: "Student not found" },
+          ]}
+        />
+        <div className="not-found">
+          <h2>Student not found</h2>
+          <p>No student exists with ID {studentId}.</p>
+        </div>
+      </>
     );
   }
 
@@ -82,9 +98,12 @@ export function StudentWorkspace({ studentId }: { studentId: string }) {
 
   return (
     <>
-      <Link href="/" className="back-link mobile-only" style={{ display: "none" }}>
-        ← Roster
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Students", href: "/students" },
+          { label: student.name },
+        ]}
+      />
       <div className="workspace-header">
         <p className="workspace-grade">Grade {student.grade}</p>
         <h2>{student.name}</h2>

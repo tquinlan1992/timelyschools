@@ -23,24 +23,20 @@ export function RequestRow({
         {request.note && <p className="request-row-note">{request.note}</p>}
       </div>
       <div className="request-row-actions">
-        <div className="type-toggle" role="group" aria-label="Request type">
-          <button
-            type="button"
-            className={request.requestType === "priority" ? "active priority" : ""}
-            onClick={() => onToggleType(request.id, "priority")}
-            aria-pressed={request.requestType === "priority"}
-          >
-            P
-          </button>
-          <button
-            type="button"
-            className={request.requestType === "elective" ? "active elective" : ""}
-            onClick={() => onToggleType(request.id, "elective")}
-            aria-pressed={request.requestType === "elective"}
-          >
-            E
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-ghost request-move-type"
+          onClick={() =>
+            onToggleType(
+              request.id,
+              request.requestType === "priority" ? "elective" : "priority"
+            )
+          }
+        >
+          {request.requestType === "priority"
+            ? "Move to electives"
+            : "Move to priority"}
+        </button>
         <button
           type="button"
           className="btn btn-danger"

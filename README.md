@@ -15,11 +15,14 @@ Open [http://localhost:3000](http://localhost:3000).
 
 **Note:** Request edits persist across page refresh via an in-memory server store. Restarting the dev server resets data to seed values.
 
+Seed data in `src/data/` mirrors **Appendix A** (37 courses) and **Appendix B** (10 students and suggested requests). One appendix typo: S008 lists **SS303**, which is not in the catalog — seed uses **SS302** (Economics) and **SS403** (Psychology) to match the student profile and avoid duplicate **SS402** rows. Tests in `tests/integration/seed-data.test.ts` guard this mapping.
+
 ## Features
 
-- **Cohort roster** — 10 students with grade, profile, status chips, and request counts; sorted with “needs attention” first
+- **Students page** (`/students`) — full-width roster table with search, filters, and request summary; scales to larger cohorts than the seed data
+- **Course catalog page** (`/courses`) — browse all 37 district courses by department, code, and typical grades
 - **Search & filter** — by name; filter to students needing review
-- **Student workspace** — two-column summary (Priority | Elective), contextual banners for edge cases with one seeded example each: English language learner (S002), math retake (S003), heavy Advanced Placement load (S009), mid-year transfer (S010), plus no requests yet (S005)
+- **Student workspace** — two-column summary (Priority | Elective), contextual banners for the four Appendix B edge cases only: English language learner (S002), math retake (S003), full Advanced Placement load (S009), mid-year transfer (S010)
 - **Add / remove / retag** — assign courses from a 37-course catalog; toggle priority vs elective; optional notes
 - **Web routes** — `/api/students`, `/api/courses`, `/api/requests/[id]` backed by swappable repository
 
@@ -45,7 +48,13 @@ User interface (React client components)
 
 ## Design & user experience decisions
 
-- **Attention-first roster** — Counselors working large cohorts need “who needs me?” before alphabetical browsing. `needsAttention` is derived from flags, empty requests, and notes marked to be determined.
+### “Needs attention” (intentional extension, not in the core brief)
+
+The assignment PDF does **not** require a “Needs attention” filter, sort order, or badge in the working prototype. The phrase appears once, in the **Written Extensions** question about changing student population: how counselors might *“notice and act on students who need attention”* (e.g. newly enrolled students with no requests yet). That is a product-design prompt for the README response, not a named feature in the prototype spec.
+
+I added **Needs attention** anyway as a deliberate interpretation of that idea. In seed data it applies only to the **four Appendix B scenarios** (S002 ELL, S003 retake, S009 full AP load, S010 transfer), via [`src/lib/flags.ts`](src/lib/flags.ts). Empty request lists still show a **No requests** chip if a counselor removes every course, but that is not a seeded student in the assignment. In a follow-up I would validate whether “no requests yet” should also drive the attention queue (as the written extension suggests).
+
+- **Attention-first roster** — Counselors working large cohorts need “who needs me?” before alphabetical browsing. `needsAttention` matches the four Appendix B edge-case flags; roster sorts those students first.
 - **Master–detail layout** — Persistent sidebar on desktop reduces navigation cost when moving student to student.
 - **Civic / editorial aesthetic** — Warm paper background, Fraunces + IBM Plex Sans, rose/teal semantic colors for priority vs elective. Avoids generic dashboard styling.
 - **Soft warnings, not hard blocks** — Grade-level catalog hints and Advanced Placement load banners inform judgment without blocking saves (district rules unknown in a prototype).
