@@ -4,6 +4,8 @@ A working prototype for school counselors and assistant principals to view a stu
 
 Built as a take-home exercise for Timely.
 
+![Students roster — search, filters, and attention highlighting](docs/screenshots/students-roster.jpg)
+
 ## Run locally
 
 ```bash
