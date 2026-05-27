@@ -131,32 +131,39 @@ For a pilot with a few schools, the current stack (Next.js + in-memory or single
 
 ---
 
+## Deliverables
+
+| Deliverable | Location |
+|-------------|----------|
+| Working prototype (localhost) | `npm install && npm run dev` → http://localhost:3000 |
+| Source code | This repository (GitHub or ZIP) |
+
+---
+
 ## Written extensions
+
+The following sections address scenarios beyond the prototype scope. Each includes assumptions I would validate with district staff and scheduling experts before building production behavior.
 
 ### Co-requisite courses
 
-Model co-requisites as a first-class relation, not implicit knowledge in the catalog:
+Co-requisites should be modeled as a **first-class catalog relationship**, not buried in course descriptions. I would add a `CoRequisiteGroup` entity with a stable `id`, a list of `courseCodes`, and a `rule` (starting with `all_required`, later extensible to `choose_one_of` or `minimum_n_of`). Courses could reference zero or more groups via a join table. At request time, validation would run whenever a counselor adds or removes a course: if any member of a group is on a student’s list, every other member in that group must also be present, unless the counselor records an explicit override with a reason (stored for audit). In the UI, I would surface this in the student workspace—not as a blocking error on first save for a pilot, but as a persistent inline banner naming the group (e.g. “Lab science pair”) with one-click actions: **Add missing course** (opens the catalog with the co-req pre-selected) and **Record exception**. When adding a course from the catalog, co-requisite partners would show a subtle linked badge so counselors understand dependencies before committing. I would avoid modal stacks; counselors are interrupted often and need scannable, actionable warnings at the point of editing.
 
-```ts
-interface CoRequisiteGroup {
-  id: string;
-  courseCodes: string[];
-  rule: "all_required"; // extend later: "choose_one_of", etc.
-}
-```
+**UX considerations:** Explain *why* the rule exists (graduation requirement vs. district policy vs. scheduling constraint), support partial completion states (one of two added), and ensure warnings still make sense in the attention-first roster (e.g. a “Co-req incomplete” chip). For districts that require hard enforcement, policy would flip from warn-only to block-on-save.
 
-Validation runs on save: if any code in a group appears on a student’s request list, all codes in that group must be present (or the counselor records an approved exception). In the UI, adding one half of a pair triggers an inline warning with actions **Add missing course** and **Dismiss** (with reason captured for audit). For a pilot, warnings are non-blocking; districts that require hard enforcement can toggle policy. UX considerations: explain *why* the pair matters (graduation vs catalog rule), show the group name, and avoid modal fatigue—prefer inline banners in the request workspace over blocking dialogs.
-
-**Assumptions to validate:** Are co-reqs always symmetric? Can one course belong to multiple groups? Are substitutes allowed?
+**Assumptions & questions to validate:** Are co-requisites always symmetric? Can one course belong to multiple groups? Are substitute courses allowed (e.g. alternate lab)? Do co-reqs apply by grade only, or also by pathway? Who can approve overrides—counselor only, or admin?
 
 ### Integration with an external scheduling platform
 
-Treat the scheduling system as a downstream consumer of **versioned snapshots**, not a live mirror of mutable state. The canonical model remains `CourseRequest` rows with `updated_at`. An export job builds a payload (student ID, school year, course codes, request types) and delivers via signed HTTPS webhook or secure file drop (e.g. S3 + short-lived URL). Security: staff-only auth, least-privilege API keys, TLS, minimize PII to what scheduling requires. When requests change after export, increment a monotonic `version` and either send a full idempotent replace or a changelog with `export_id`. The UI shows **Last sent to scheduler: [date]** and **Requests changed since last export** so counselors know to re-sync. Idempotency keys on the receiver prevent duplicate enrollments from retries.
+The scheduling platform should consume **versioned snapshots** of request data, not a live mutable feed. The canonical store remains per-student `CourseRequest` rows in our system with `updated_at` timestamps. When the cohort (or a subset) is ready to hand off, an export job builds a payload: school year, student identifier, course code, request type (priority/elective), and optional notes—matching the shape already stubbed in `src/lib/export.ts`. Delivery could be a signed HTTPS POST to the scheduler’s import API, a secure file drop (S3 with short-lived presigned URLs), or a pull model where the scheduler fetches `/exports/{version}`. **Security:** staff authentication on our side (SSO), mutual TLS or scoped API keys for machine-to-machine calls, encryption in transit, and sending only fields the scheduler needs (minimize PII beyond student ID and grade). Credentials rotate on a schedule; export jobs run with least privilege.
 
-**Assumptions to validate:** Batch nightly vs real-time? Does the scheduler accept deletes? Who owns conflict resolution?
+Because requests **change after handoff**, each export needs a monotonic `version` or `exportId`. The scheduler should accept either idempotent full replaces per student or an explicit changelog (adds/removes). Our UI would show **Last sent to scheduling: [date]** and flag **Requests changed since last send** when any underlying row differs from the exported snapshot—similar in spirit to the attention queue in this prototype. Retries use idempotency keys so network failures do not double-enroll students.
+
+**Assumptions & questions to validate:** Is export batch (nightly) or near-real-time required? Does the external system accept deletes, or only adds? Who resolves conflicts when the scheduler cannot place a course—does feedback return to this tool? Is the student ID scheme shared with the SIS?
 
 ### Changing student population
 
-Students need `enrollmentStatus` (`active`, `incoming`, `withdrawn`) and `enrolledAt`. Only `active` / `incoming` students appear in the default roster; withdrawn students are hidden but retained for history. New enrollments surface in an **attention queue** (no requests, or `incoming` without completed credit review). Mid-year transfers like S010 stay flagged until transcript evaluation completes. The roster sort prioritizes: no requests → credit pending → recently enrolled. Optional feed from SIS webhooks updates roster without wiping in-progress counselor work (merge by student ID). Product UX: dashboard counts (“4 new students without requests”), email digest for counselors, and clear draft vs finalized states so partial work is not exported prematurely.
+Students transfer in and out continuously; the roster cannot be a static seed file in production. I would model `enrollmentStatus` (`active`, `incoming`, `withdrawn`) and `enrolledAt` / `withdrawnAt` on each student, synced from the SIS on a schedule or via webhooks. **Incoming** students appear in the default counselor view immediately but are prioritized in the attention queue until they have a valid request list (or an explicit “pending transcript” state, as with S010 in the sample data). **Withdrawn** students disappear from the default roster but remain queryable for audit; their requests are frozen or archived, not silently deleted. When a student re-enrolls, merge on stable SIS student ID so prior request work is recovered where appropriate.
 
-**Assumptions to validate:** Is SIS the roster source of truth? Do withdrawn students’ requests get archived or deleted?
+The product experience would extend the prototype’s **needs attention** sort: newly enrolled with zero requests, credit evaluation pending, roster changes since last review, and students whose requests were edited after a scheduling handoff. A header summary (“4 students need requests”) and optional email digest would help counselors operating at scale. Bulk assign templates (e.g. default grade-level core bundle) could accelerate new enrollments without automating judgment. Clear **draft vs. finalized** states would prevent half-finished lists from being sent downstream.
+
+**Assumptions & questions to validate:** Is the SIS the source of truth for roster membership? How quickly must new enrollments appear? Should withdrawn students’ requests be retained for re-enrollment? Do counselors own students by caseload or by grade?
