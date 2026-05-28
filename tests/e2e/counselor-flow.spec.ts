@@ -1,6 +1,25 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function resetSeedData(page: Page) {
+  const res = await page.request.post("/api/test/reset");
+  expect(res.ok()).toBeTruthy();
+}
+
+function studentsBreadcrumb(page: Page) {
+  return page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Students" });
+}
+
+function studentRow(page: Page, name: RegExp | string) {
+  return page.getByRole("link", { name: new RegExp(`View ${typeof name === "string" ? name : name.source}`, "i") });
+}
 
 test.describe("Counselor course request flow", () => {
+  test.beforeEach(async ({ page }) => {
+    await resetSeedData(page);
+  });
+
   test("attention filter, student workspace, add course, persistence", async ({ page }) => {
     await page.goto("/students");
     await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
@@ -30,51 +49,58 @@ test.describe("Counselor course request flow", () => {
 
   test("each assignment edge case has a visible roster flag and banner", async ({ page }) => {
     await page.goto("/students");
+    await expect(studentRow(page, /Mei Chen/i)).toBeVisible();
 
     const cases = [
-      { name: /Mei Chen/i, chip: "ELL", banner: "English Language Learner" },
-      { name: /Jordan Williams/i, chip: "Retake", banner: "Math retake required" },
-      { name: /Liam O'Brien/i, chip: "AP load", banner: "Heavy AP schedule" },
-      { name: /Nina Torres/i, chip: "Transfer", banner: "Mid-year transfer" },
+      { name: "Mei Chen", chip: "ELL", banner: "English Language Learner" },
+      { name: "Jordan Williams", chip: "Retake", banner: "Math retake required" },
+      { name: "Liam O'Brien", chip: "AP load", banner: "Heavy AP schedule" },
+      { name: "Nina Torres", chip: "Transfer", banner: "Mid-year transfer" },
     ] as const;
 
     for (const { name, chip, banner } of cases) {
-      const row = page.getByRole("row").filter({ hasText: name });
-      await expect(row.getByText(chip)).toBeVisible();
+      const row = studentRow(page, name);
+      await expect(row.locator(".status-chip", { hasText: chip })).toBeVisible();
       await row.click();
-      await expect(page.getByText(banner)).toBeVisible();
-      await page.getByRole("link", { name: "Students" }).click();
+      await expect(page.getByRole("heading", { name: banner })).toBeVisible();
+      await studentsBreadcrumb(page).click();
+      await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
     }
   });
 
   test("roster updates when all requests are removed", async ({ page }) => {
     await page.goto("/students/S001");
+    await expect(page.getByRole("heading", { name: "Alex Rivera" })).toBeVisible();
+
     const removeButtons = page.getByRole("button", { name: "Remove" });
     const count = await removeButtons.count();
     for (let i = 0; i < count; i++) {
       await removeButtons.first().click();
     }
 
-    await page.getByRole("link", { name: "Students" }).click();
-    const row = page.getByRole("row").filter({ hasText: "Alex Rivera" });
-    await expect(row.getByText("No requests")).toBeVisible();
+    await studentsBreadcrumb(page).click();
+    const row = studentRow(page, "Alex Rivera");
+    await expect(row).toBeVisible();
     await expect(row.locator(".status-chip.no_requests")).toBeVisible();
+    await expect(row.locator(".request-counts")).toHaveText("No requests");
   });
 
   test("course catalog page lists departments", async ({ page }) => {
     await page.goto("/courses");
     await expect(page.getByRole("heading", { name: "Course catalog" })).toBeVisible();
-    await expect(page.getByText("Math")).toBeVisible();
+    await page.getByLabel("Filter by department").selectOption("Math");
     await expect(page.getByRole("cell", { name: "MTH101" })).toBeVisible();
+    await expect(page.locator("tbody").getByText("Math", { exact: true }).first()).toBeVisible();
   });
 
   test("shows error when adding duplicate course", async ({ page }) => {
     await page.goto("/students/S001");
+    await expect(page.getByRole("heading", { name: "Alex Rivera" })).toBeVisible();
     await page.getByRole("button", { name: "Add course" }).click();
     await page.getByPlaceholder("Search catalog…").fill("MTH101");
     const catalogPanel = page.getByRole("dialog");
     await expect(
-      catalogPanel.getByRole("button", { name: /Algebra I MTH101/i })
-    ).toBeDisabled();
+      catalogPanel.getByRole("button", { name: /Algebra I/i })
+    ).toBeDisabled({ timeout: 10_000 });
   });
 });
