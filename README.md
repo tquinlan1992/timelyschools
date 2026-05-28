@@ -6,175 +6,197 @@ Built as a take-home exercise for Timely.
 
 ![Students roster — search, filters, and attention highlighting](docs/screenshots/students-roster.jpg)
 
-## Run locally
+## Contents
+
+- [Deliverables](#deliverables)
+- [Quick start](#quick-start)
+- [What the prototype covers](#what-the-prototype-covers)
+- [Using the app](#using-the-app)
+- [Architecture](#architecture)
+- [Key design decisions](#key-design-decisions)
+- [Assumptions & open questions](#assumptions--open-questions)
+- [Written extensions](#written-extensions)
+- [Testing approach](#testing-approach)
+- [Pilot → scale](#pilot--scale)
+- [Seed data notes](#seed-data-notes)
+
+## Deliverables
+
+| Deliverable | Location |
+|-------------|----------|
+| Working prototype (localhost) | [Quick start](#quick-start) → http://localhost:3000 |
+| Source code | This repository |
+| README: how to run, architecture, written extensions | This file |
+
+**Stack:** Next.js 16 (App Router), TypeScript, in-memory API seeded from JSON, Vitest + Playwright.
+
+## Quick start
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) (redirects to `/students`).
 
-**Note:** Request edits persist across page refresh via an in-memory server store. Restarting the dev server resets data to seed values.
+Request edits persist across page refresh via an in-memory server store. Restarting the dev server resets data to seed values.
 
-Seed data in `src/data/` mirrors **Appendix A** (37 courses) and **Appendix B** (10 students and suggested requests). One appendix typo: S008 lists **SS303**, which is not in the catalog — seed uses **SS302** (Economics) and **SS403** (Psychology) to match the student profile and avoid duplicate **SS402** rows. Tests in `tests/integration/seed-data.test.ts` guard this mapping.
+**Full CI gate locally:** `npm run test:ci` (lint → build → coverage → e2e)
 
-## Features
+## What the prototype covers
 
-- **Students page** (`/students`) — full-width roster table with search, filters, and request summary; scales to larger cohorts than the seed data
-- **Course catalog page** (`/courses`) — browse all 37 district courses by department, code, and typical grades
-- **Search & filter** — by name; filter to students needing review
-- **Student workspace** — two-column summary (Priority | Elective), contextual banners for the four Appendix B edge cases only: English language learner (S002), math retake (S003), full Advanced Placement load (S009), mid-year transfer (S010)
-- **Add / remove / retag** — assign courses from a 37-course catalog; toggle priority vs elective; optional notes
-- **Web routes** — `/api/students`, `/api/courses`, `/api/requests/[id]` backed by swappable repository
+Mapped to the assignment problem statement:
+
+| Requirement | Implementation |
+|-------------|----------------|
+| View a list of students for an upcoming school year | [`/students`](http://localhost:3000/students) — paginated roster with grade, profile context, flags, and request counts |
+| Select a student and view or edit their requests | [`/students/[id]`](http://localhost:3000/students/S001) — student workspace with priority / elective columns |
+| Assign requests from the catalog (priority or elective) | Add-course sheet from catalog search; move courses between lists; remove requests |
+| Clear summary of each student's request list | Two-column layout (Priority \| Elective) plus profile, flags, and contextual banners |
+
+Appendix B edge cases (S002 ELL, S003 retake, S009 full AP load, S010 transfer) have roster flags and in-workspace banners. See [seed data notes](#seed-data-notes).
+
+## Using the app
+
+| Route | Purpose |
+|-------|---------|
+| `/students` | Cohort roster — search, grade filter, **All students** / **Needs attention**, pagination |
+| `/students/[id]` | Edit one student's requests; breadcrumbs back to roster |
+| `/courses` | Browse all 37 catalog courses (Appendix A) by department, code, and typical grades |
+
+**Counselor actions on a student:** add a course (choose priority or elective), move a course to the other list, remove a course, optional note on add.
+
+**API (swappable data layer):** `GET /api/students`, `GET /api/students/[id]`, `GET /api/courses`, `POST/PATCH/DELETE` on requests — see [Architecture](#architecture).
 
 ## Architecture
 
 ```
-User interface (React client components)
+UI (React client components)
   → fetch /api/*
     → CourseRequestRepository (interface)
-      → in-memory store factory (singleton, seeded from JSON)
+      → in-memory store (singleton, seeded from JSON)
 ```
 
 | Path | Role |
 |------|------|
-| `src/data/*.json` | Seed catalog, roster, initial requests (simulates future server payloads) |
+| `src/data/*.json` | Seed catalog, roster, initial requests (simulates future API payloads) |
 | `src/lib/repository/types.ts` | Repository contract |
 | `src/lib/repository/in-memory-store.ts` | Mutable in-memory implementation |
-| `src/lib/flags.ts` | Derived flags (`ell`, `retake`, `ap_heavy`, etc.) and sort order |
+| `src/lib/flags.ts` | Derived flags (`ell`, `retake`, `ap_heavy`, etc.) and roster sort |
 | `src/lib/export.ts` | `buildSchedulingExport()` stub for external scheduler handoff |
 | `src/app/api/**` | Thin route handlers delegating to repository |
 
-**Swapping data sources:** Implement `CourseRequestRepository` against a real web client; keep route signatures or point the user interface at an external base URL. User interface components do not import seed data files directly.
+**Swapping data sources:** Implement `CourseRequestRepository` against a real API client; UI components do not import seed files directly.
 
-## Design & user experience decisions
+**Extending business rules:** New request types or validation (e.g. co-requisites) belong in the repository + `src/lib/` helpers; routes stay thin.
 
-### “Needs attention” (intentional extension, not in the core brief)
+## Key design decisions
 
-The assignment PDF does **not** require a “Needs attention” filter, sort order, or badge in the working prototype. The phrase appears once, in the **Written Extensions** question about changing student population: how counselors might *“notice and act on students who need attention”* (e.g. newly enrolled students with no requests yet). That is a product-design prompt for the README response, not a named feature in the prototype spec.
+### “Needs attention” (intentional extension)
 
-I added **Needs attention** anyway as a deliberate interpretation of that idea. In seed data it applies only to the **four Appendix B scenarios** (S002 ELL, S003 retake, S009 full AP load, S010 transfer), via [`src/lib/flags.ts`](src/lib/flags.ts). Empty request lists still show a **No requests** chip if a counselor removes every course, but that is not a seeded student in the assignment. In a follow-up I would validate whether “no requests yet” should also drive the attention queue (as the written extension suggests).
+The assignment PDF does **not** require a “Needs attention” filter in the working prototype. That phrase appears in the **Written Extensions** prompt about changing student population (how counselors notice students who need action). I added it as a deliberate bridge between prototype and extension:
 
-- **Attention-first roster** — Counselors working large cohorts need “who needs me?” before alphabetical browsing. `needsAttention` matches the four Appendix B edge-case flags; roster sorts those students first.
-- **Master–detail layout** — Persistent sidebar on desktop reduces navigation cost when moving student to student.
-- **Civic / editorial aesthetic** — Warm paper background, Fraunces + IBM Plex Sans, rose/teal semantic colors for priority vs elective. Avoids generic dashboard styling.
-- **Soft warnings, not hard blocks** — Grade-level catalog hints and Advanced Placement load banners inform judgment without blocking saves (district rules unknown in a prototype).
+- In seed data, **only the four Appendix B scenarios** get `needsAttention` (S002, S003, S009, S010) via [`src/lib/flags.ts`](src/lib/flags.ts).
+- **No requests** appears dynamically when a counselor removes every course (not a seeded student).
+- In production I would also queue newly enrolled students with empty lists (per the written extension).
+
+### Layout and navigation
+
+- **Full-page roster** (not master–detail) — table scales to larger cohorts; row opens the student workspace.
+- **Breadcrumbs** on the student page (`Students → [name]`).
+- **Course catalog** as a separate page so counselors can browse Appendix A without opening a student first.
+
+### Request-type UX
+
+- Workspace uses **two columns** (Priority \| Elective) so the summary is scannable.
+- Changing type is **“Move to electives” / “Move to priority”** — not cryptic P/E toggles.
+- Add-course sheet uses labeled **Priority / Elective** segments with a short hint.
+
+### Judgment over hard blocks
+
+Grade-level catalog hints and AP-load banners inform counselors without blocking saves (district rules unknown in a 2–3 hour prototype).
+
+### Visual design
+
+Warm paper background, Fraunces + IBM Plex Sans, Timely-aligned palette — avoids generic dashboard styling while staying staff-focused.
 
 ## Assumptions & open questions
 
+**Assumptions made for this build:**
+
 - Single school year (`2026-2027`) and single implicit staff role (no authentication).
-- Counselors assign priority vs elective; students do not self-serve in this prototype.
-- One request row per student per course code (duplicates rejected with a conflict response).
+- Counselors assign priority vs elective; no student-facing UI.
+- One request per student per course code (duplicates rejected with HTTP 409).
 - Catalog grade levels are advisory; counselors may override.
-- **Open questions for discovery:** max courses per student? Who marks a list “complete” for scheduling? How does student information system roster sync affect in-flight requests? Hard vs soft co-requisite enforcement?
 
-## Testing
+**Questions I would ask before production:**
 
-### Philosophy (test pyramid)
-
-| Layer | Location | What it protects |
-|-------|----------|------------------|
-| **Unit** | `tests/unit/` | Pure business rules (`flags`, `export`) |
-| **Integration** | `tests/integration/` | Repository + route contracts |
-| **Component** | `tests/components/` | Counselor-facing user interface behavior (React Testing Library) |
-| **End-to-end** | `tests/e2e/` | Full flows in a real browser (Playwright) |
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `npm test` | Run all Vitest suites (unit, integration, components) |
-| `npm run test:watch` | Vitest watch mode |
-| `npm run test:coverage` | Vitest with coverage thresholds on `src/lib` + `src/app/api` |
-| `npm run test:components` | Component tests only |
-| `npm run test:e2e` | Playwright (starts `next start`; run `npm run build` first in continuous integration) |
-| `npm run test:ci` | Full local continuous integration gate: lint → build → coverage → end-to-end |
-
-**First-time setup for end-to-end tests:** `npx playwright install --with-deps chromium`
-
-### Adding a new test
-
-1. **Business rule** (sorting, flags, validation) → `tests/unit/`
-2. **Route or repository behavior** → `tests/integration/`; call `resetStore()` is automatic via `tests/setup.ts`
-3. **User interface interaction** → `tests/components/` with Testing Library
-4. **Cross-screen counselor flow** → `tests/e2e/`
-
-Use factories in `tests/fixtures/` for small payloads; seed data remains the source of truth for full catalog tests.
-
-### Store isolation
-
-- `createStore()` — fresh in-memory instance (repository integration tests)
-- `resetStore()` — re-seed singleton before each test (route tests; global `beforeEach` in `tests/setup.ts`)
-
-### Coverage
-
-Coverage is enforced for `src/lib/**` and `src/app/api/**` (70%+ lines/branches). Reports are written to `coverage/` after `npm run test:coverage`.
-
-Component coverage is exercised selectively via React Testing Library and end-to-end tests; not gated in continuous integration thresholds yet.
-
-### Continuous integration (GitHub Actions)
-
-Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — runs on push to `main` and all pull requests.
-
-| Job | Command |
-|-----|---------|
-| `lint` | `npm run lint` |
-| `build` | `npm run build` |
-| `test` | `npm run test:coverage` (uploads `coverage/` artifact) |
-| `e2e` | `npm run build` + Playwright chromium + `npm run test:e2e` |
-
-Failed end-to-end runs upload a `playwright-report` artifact for debugging.
-
-**Recommended branch protection on `main`:** require `lint`, `build`, `test`, and `e2e` checks.
-
-**Node version:** `.nvmrc` pins Node 22 (also set in `package.json` `engines`).
-
-### Not tested (yet)
-
-- Full `AppShell` / `StudentWorkspace` fetch wiring (covered by end-to-end tests)
-- Authentication, multi-tenant, student information system integration
-- Visual regression / load testing
-
-## Pilot → scale
-
-For a pilot with a few schools, the current stack (Next.js + in-memory or single-tenant database + simple routes) is appropriate. To scale: persist requests in PostgreSQL with `updated_at` / versioning, add staff authentication (single sign-on), roster import from the student information system, audit log for counselor changes, and async export jobs to the scheduling engine. Keep the repository boundary so the user interface remains stable while backend services split.
-
----
-
-## Deliverables
-
-| Deliverable | Location |
-|-------------|----------|
-| Working prototype (localhost) | `npm install && npm run dev` → http://localhost:3000 |
-| Source code | This repository (GitHub or ZIP) |
-
----
+- Max courses per student? Who marks a list “complete” for scheduling?
+- How does SIS roster sync affect in-flight requests?
+- Hard vs soft co-requisite enforcement?
+- Should “no requests yet” always appear in the attention queue?
 
 ## Written extensions
 
-The following sections address scenarios beyond the prototype scope. Each includes assumptions I would validate with district staff and scheduling experts before building production behavior.
+*Assignment asks for 1–2 paragraphs per scenario; assumptions and open questions called out at the end of each.*
 
 ### Co-requisite courses
 
-Co-requisites should be modeled as a **first-class catalog relationship**, not buried in course descriptions. I would add a `CoRequisiteGroup` entity with a stable `id`, a list of `courseCodes`, and a `rule` (starting with `all_required`, later extensible to `choose_one_of` or `minimum_n_of`). Courses could reference zero or more groups via a join table. At request time, validation would run whenever a counselor adds or removes a course: if any member of a group is on a student’s list, every other member in that group must also be present, unless the counselor records an explicit override with a reason (stored for audit). In the user interface, I would surface this in the student workspace—not as a blocking error on first save for a pilot, but as a persistent inline banner naming the group (e.g. “Lab science pair”) with one-click actions: **Add missing course** (opens the catalog with the co-requisite pre-selected) and **Record exception**. When adding a course from the catalog, co-requisite partners would show a subtle linked badge so counselors understand dependencies before committing. I would avoid modal stacks; counselors are interrupted often and need scannable, actionable warnings at the point of editing.
+Co-requisites should be a **first-class catalog relationship**, not buried in course descriptions. I would add a `CoRequisiteGroup` entity (`id`, `courseCodes`, `rule` starting with `all_required`, later `choose_one_of` / `minimum_n_of`). At request time, validation runs on add/remove: if any group member is on the list, all required members must be present unless the counselor records an override with audit reason.
 
-**User experience considerations:** Explain *why* the rule exists (graduation requirement vs. district policy vs. scheduling constraint), support partial completion states (one of two added), and ensure warnings still make sense in the attention-first roster (e.g. a “Co-requisite incomplete” chip). For districts that require hard enforcement, policy would flip from warn-only to block-on-save.
+In the UI: a persistent inline banner on the student workspace (e.g. “Lab science pair — missing SCI201”) with **Add missing course** and **Record exception**, not a blocking modal on first save for a pilot. Catalog rows would show a linked badge on partner courses. Partial states (one of two added) should be obvious; districts that need hard enforcement flip from warn-only to block-on-save.
 
-**Assumptions & questions to validate:** Are co-requisites always symmetric? Can one course belong to multiple groups? Are substitute courses allowed (e.g. alternate lab)? Do co-requisites apply by grade only, or also by pathway? Who can approve overrides—counselor only, or administrator?
+**UX:** Explain *why* the rule exists; support co-requisite-incomplete chips on the attention-first roster.
+
+**Validate:** Are co-requisites symmetric? Can one course sit in multiple groups? Substitute courses? Who approves overrides?
 
 ### Integration with an external scheduling platform
 
-The scheduling platform should consume **versioned snapshots** of request data, not a live mutable feed. The canonical store remains per-student `CourseRequest` rows in our system with `updated_at` timestamps. When the cohort (or a subset) is ready to hand off, an export job builds a payload: school year, student identifier, course code, request type (priority/elective), and optional notes—matching the shape already stubbed in `src/lib/export.ts`. Delivery could be a signed secure web request to the scheduler’s import endpoint, a secure file drop (cloud object storage with short-lived access URLs), or a pull model where the scheduler fetches `/exports/{version}`. **Security:** staff authentication on our side (single sign-on), certificate-based encryption for machine-to-machine calls or scoped keys, encryption in transit, and sending only fields the scheduler needs (minimize personally identifiable information beyond student identifier and grade). Credentials rotate on a schedule; export jobs run with least privilege.
+The scheduler should consume **versioned snapshots**, not a live mutable feed. Canonical data stays as per-student `CourseRequest` rows with `updated_at`. An export job builds school year, student id, course code, request type, optional notes — matching [`src/lib/export.ts`](src/lib/export.ts). Delivery: signed HTTPS to an import endpoint, secure file drop, or pull via `/exports/{version}`.
 
-Because requests **change after handoff**, each export needs a monotonic `version` or `exportId`. The scheduler should accept either idempotent full replaces per student or an explicit changelog (adds/removes). Our user interface would show **Last sent to scheduling: [date]** and flag **Requests changed since last send** when any underlying row differs from the exported snapshot—similar in spirit to the attention queue in this prototype. Retries use idempotency keys so network failures do not double-enroll students.
+**Security:** Staff SSO on our side; scoped machine credentials; encryption in transit; minimize PII in the payload. **Change after handoff:** monotonic `exportId`; UI shows *Last sent* and *Requests changed since last send*; idempotent retries.
 
-**Assumptions & questions to validate:** Is export batch (nightly) or near-real-time required? Does the external system accept deletes, or only adds? Who resolves conflicts when the scheduler cannot place a course—does feedback return to this tool? Is the student identifier scheme shared with the student information system?
+**Validate:** Batch vs near-real-time export? Does the scheduler accept deletes? Shared student-id scheme with SIS?
 
 ### Changing student population
 
-Students transfer in and out continuously; the roster cannot be a static seed file in production. I would model `enrollmentStatus` (`active`, `incoming`, `withdrawn`) and `enrolledAt` / `withdrawnAt` on each student, synced from the student information system on a schedule or via webhooks. **Incoming** students appear in the default counselor view immediately but are prioritized in the attention queue until they have a valid request list (or an explicit “pending transcript” state, as with S010 in the sample data). **Withdrawn** students disappear from the default roster but remain queryable for audit; their requests are frozen or archived, not silently deleted. When a student re-enrolls, merge on stable student information system student identifier so prior request work is recovered where appropriate.
+Model `enrollmentStatus` (`active`, `incoming`, `withdrawn`) synced from the SIS. **Incoming** students appear immediately but stay in the attention queue until they have a valid list or a “pending transcript” state (S010). **Withdrawn** students leave the default roster; requests are archived, not deleted. Re-enrollment merges on stable SIS id.
 
-The product experience would extend the prototype’s **needs attention** sort: newly enrolled with zero requests, credit evaluation pending, roster changes since last review, and students whose requests were edited after a scheduling handoff. A header summary (“4 students need requests”) and optional email digest would help counselors operating at scale. Bulk assign templates (e.g. default grade-level core bundle) could accelerate new enrollments without automating judgment. Clear **draft vs. finalized** states would prevent half-finished lists from being sent downstream.
+Extend **needs attention**: zero requests, credit pending, roster changes since last review, edits after scheduling handoff. Header count (“4 need review”) and optional digest at scale. Bulk grade-level templates for speed; **draft vs finalized** before export.
 
-**Assumptions & questions to validate:** Is the student information system the source of truth for roster membership? How quickly must new enrollments appear? Should withdrawn students’ requests be retained for re-enrollment? Do counselors own students by caseload or by grade?
+**Validate:** SIS as roster source of truth? Latency for new enrollments? Retain requests on withdraw? Caseload vs grade ownership?
+
+## Testing approach
+
+The assignment does not require tests, but the repo includes them to show how I would protect this codebase in conversation:
+
+| Layer | Location | Protects |
+|-------|----------|----------|
+| Unit | `tests/unit/` | Pure rules (`flags`, `export`, pagination) |
+| Integration | `tests/integration/` | Repository + API contracts; seed fidelity |
+| Component | `tests/components/` | UI behavior (Testing Library) |
+| E2E | `tests/e2e/` | Counselor flows (Playwright); resets seed via `POST /api/test/reset` |
+
+| Command | Description |
+|---------|-------------|
+| `npm test` | All Vitest suites |
+| `npm run test:coverage` | Vitest with thresholds on `src/lib` + `src/app/api` |
+| `npm run test:e2e` | Playwright (`npm run build` first) |
+| `npm run test:ci` | Lint → build → coverage → e2e |
+
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on push/PR. E2E setup: `npx playwright install --with-deps chromium`.
+
+**Not covered yet:** auth, multi-tenant, SIS integration, visual regression.
+
+## Pilot → scale
+
+**Pilot (few schools):** Current stack is appropriate — Next.js, repository boundary, simple routes, PostgreSQL when persistence is needed.
+
+**Scale:** Versioned request rows in PostgreSQL, staff SSO, SIS roster import, audit log, async export jobs to the scheduler. Keep `CourseRequestRepository` so the UI stays stable while services split.
+
+## Seed data notes
+
+Data in `src/data/` mirrors **Appendix A** (37 courses) and **Appendix B** (10 students + suggested requests).
+
+- **S008 typo:** appendix lists **SS303**, which is not in the catalog. Seed uses **SS302** (Economics) and **SS403** (Psychology) and avoids duplicate **SS402** rows. [`tests/integration/seed-data.test.ts`](tests/integration/seed-data.test.ts) guards this mapping.
+- **S010:** placeholder requests reflect “TBD pending transcript review” from the appendix.
