@@ -10,10 +10,35 @@ import type { StudentWithRequests } from "@/types";
 
 const GRADE_OPTIONS = [9, 10, 11, 12] as const;
 
+type RosterParamsUpdate = {
+  search?: string | null;
+  filter?: "all" | "needs_attention";
+  grade?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+function readRosterParams(searchParams: URLSearchParams) {
+  return {
+    search: searchParams.get("search") ?? "",
+    filter:
+      searchParams.get("filter") === "needs_attention"
+        ? ("needs_attention" as const)
+        : ("all" as const),
+    grade: searchParams.get("grade") ?? "all",
+    page: Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1),
+    pageSize:
+      parseInt(searchParams.get("pageSize") ?? String(DEFAULT_PAGE_SIZE), 10) ||
+      DEFAULT_PAGE_SIZE,
+  };
+}
+
 export function StudentRosterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshKey } = useRosterRefresh();
+
+  const { search, filter, grade, page, pageSize } = readRosterParams(searchParams);
 
   const [students, setStudents] = useState<StudentWithRequests[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -22,39 +47,56 @@ export function StudentRosterPage() {
     total: 0,
     totalPages: 1,
   });
-  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [filter, setFilter] = useState<"all" | "needs_attention">(
-    searchParams.get("filter") === "needs_attention" ? "needs_attention" : "all"
-  );
-  const [grade, setGrade] = useState(searchParams.get("grade") ?? "all");
-  const [page, setPage] = useState(
-    Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1)
-  );
-  const [pageSize, setPageSize] = useState(
-    parseInt(searchParams.get("pageSize") ?? String(DEFAULT_PAGE_SIZE), 10) ||
-      DEFAULT_PAGE_SIZE
-  );
+  const [searchInput, setSearchInput] = useState(search);
   const [loading, setLoading] = useState(true);
 
+  const replaceParams = useCallback(
+    (updates: RosterParamsUpdate) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if ("search" in updates) {
+        if (updates.search) params.set("search", updates.search);
+        else params.delete("search");
+      }
+      if ("filter" in updates) {
+        if (updates.filter === "needs_attention") params.set("filter", "needs_attention");
+        else params.delete("filter");
+      }
+      if ("grade" in updates) {
+        if (updates.grade && updates.grade !== "all") params.set("grade", updates.grade);
+        else params.delete("grade");
+      }
+      if ("page" in updates) {
+        if (updates.page && updates.page > 1) params.set("page", String(updates.page));
+        else params.delete("page");
+      }
+      if ("pageSize" in updates) {
+        if (updates.pageSize && updates.pageSize !== DEFAULT_PAGE_SIZE) {
+          params.set("pageSize", String(updates.pageSize));
+        } else {
+          params.delete("pageSize");
+        }
+      }
+
+      const q = params.toString();
+      router.replace(q ? `/students?${q}` : "/students", { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  // Keep the input in sync when the URL changes (nav link, back button, etc.).
   useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
+
+  // Debounce search → URL.
+  useEffect(() => {
+    if (searchInput === search) return;
     const t = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
+      replaceParams({ search: searchInput || null, page: 1 });
     }, 300);
     return () => clearTimeout(t);
-  }, [searchInput]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (filter === "needs_attention") params.set("filter", "needs_attention");
-    if (grade !== "all") params.set("grade", grade);
-    if (page > 1) params.set("page", String(page));
-    if (pageSize !== DEFAULT_PAGE_SIZE) params.set("pageSize", String(pageSize));
-    const q = params.toString();
-    router.replace(q ? `/students?${q}` : "/students", { scroll: false });
-  }, [search, filter, grade, page, pageSize, router]);
+  }, [searchInput, search, replaceParams]);
 
   const fetchStudents = useCallback(async () => {
     const params = new URLSearchParams();
@@ -101,10 +143,7 @@ export function StudentRosterPage() {
         <select
           className="filter-select"
           value={grade}
-          onChange={(e) => {
-            setGrade(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) => replaceParams({ grade: e.target.value, page: 1 })}
           aria-label="Filter by grade"
         >
           <option value="all">All grades</option>
@@ -118,20 +157,14 @@ export function StudentRosterPage() {
           <button
             type="button"
             className={`filter-chip ${filter === "all" ? "active" : ""}`}
-            onClick={() => {
-              setFilter("all");
-              setPage(1);
-            }}
+            onClick={() => replaceParams({ filter: "all", page: 1 })}
           >
             All students
           </button>
           <button
             type="button"
             className={`filter-chip ${filter === "needs_attention" ? "active" : ""}`}
-            onClick={() => {
-              setFilter("needs_attention");
-              setPage(1);
-            }}
+            onClick={() => replaceParams({ filter: "needs_attention", page: 1 })}
           >
             Needs attention
           </button>
@@ -168,11 +201,8 @@ export function StudentRosterPage() {
 
       <Pagination
         meta={pagination}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPage(1);
-        }}
+        onPageChange={(nextPage) => replaceParams({ page: nextPage })}
+        onPageSizeChange={(size) => replaceParams({ pageSize: size, page: 1 })}
         disabled={loading}
       />
     </div>
